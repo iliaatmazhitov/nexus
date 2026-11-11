@@ -16,6 +16,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	drainTimeout = 0 * time.Second
+	stopTimeout  = 10 * time.Second
+)
+
 // Запуск сервиса
 func run(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -49,6 +54,8 @@ func run(ctx context.Context) error {
 
 	// Задача: сервер
 	g.Go(func() error {
+		logger.Info("server started", "addr", server.Addr)
+		h.SetReady(true)
 		err := server.ListenAndServe()
 		if !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("listen: %w", err)
@@ -60,13 +67,23 @@ func run(ctx context.Context) error {
 	// Задача: остановка
 	g.Go(func() error {
 		<-gctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		h.SetReady(false)
+		logger.Info("not ready, draining", "drain", drainTimeout)
+		time.Sleep(drainTimeout)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
+		logger.Info("shutting down")
 		defer cancel()
 		err := server.Shutdown(shutdownCtx)
 		return err
 
 	})
-	return g.Wait()
+
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	logger.Info("server stoped")
+	return nil
 }
 
 func main() {
