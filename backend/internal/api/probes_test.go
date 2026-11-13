@@ -2,6 +2,8 @@ package api_test
 
 import (
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,10 +13,22 @@ import (
 )
 
 func TestNewRouterRequiresHealth(t *testing.T) {
-	handler, err := api.NewRouter(api.Dependencies{Health: nil})
+	handler, err := api.NewRouter(api.Dependencies{Health: nil, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 
 	if !errors.Is(err, api.ErrHealthRequired) {
 		t.Errorf("error: got %v, want %v", err, api.ErrHealthRequired)
+	}
+
+	if handler != nil {
+		t.Errorf("handler: got %v, want nil", handler)
+	}
+}
+
+func TestNewRouterRequiresLogger(t *testing.T) {
+	handler, err := api.NewRouter(api.Dependencies{Health: health.New(), Logger: nil})
+
+	if !errors.Is(err, api.ErrLoggerRequired) {
+		t.Errorf("error: got %v, want %v", err, api.ErrLoggerRequired)
 	}
 
 	if handler != nil {
@@ -53,7 +67,7 @@ func TestProbesAreRouted(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := health.New()
 			h.SetReady(tc.isReady)
-			r, err := api.NewRouter(api.Dependencies{Health: h})
+			r, err := api.NewRouter(api.Dependencies{Health: h, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 
 			if err != nil {
 				t.Fatalf("error: got %v, want %v", err, nil)

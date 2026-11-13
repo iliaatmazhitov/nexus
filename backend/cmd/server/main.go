@@ -30,7 +30,7 @@ func run(ctx context.Context) error {
 	slog.SetDefault(logger)
 
 	h := health.New()
-	router, err := api.NewRouter(api.Dependencies{Health: h})
+	router, err := api.NewRouter(api.Dependencies{Health: h, Logger: logger})
 
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
@@ -54,8 +54,8 @@ func run(ctx context.Context) error {
 
 	// Задача: сервер
 	g.Go(func() error {
-		logger.Info("server started", "addr", server.Addr)
 		h.SetReady(true)
+		logger.Info("server started", "addr", server.Addr)
 		err := server.ListenAndServe()
 		if !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("listen: %w", err)
@@ -71,18 +71,20 @@ func run(ctx context.Context) error {
 		logger.Info("not ready, draining", "drain", drainTimeout)
 		time.Sleep(drainTimeout)
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
-		logger.Info("shutting down")
 		defer cancel()
+		logger.Info("shutting down")
 		err := server.Shutdown(shutdownCtx)
-		return err
-
+		if err != nil {
+			return fmt.Errorf("shutdown: %w", err)
+		}
+		return nil
 	})
 
 	if err := g.Wait(); err != nil {
 		return err
 	}
 
-	logger.Info("server stoped")
+	logger.Info("stopped")
 	return nil
 }
 

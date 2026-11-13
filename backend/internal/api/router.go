@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -11,10 +12,12 @@ import (
 )
 
 var ErrHealthRequired = errors.New("api: Health is required")
+var ErrLoggerRequired = errors.New("api: Logger is required")
 
 // Dependencies: тут будет все, что нужно роутеру извне
 type Dependencies struct {
 	Health *health.Health
+	Logger *slog.Logger
 }
 
 // TODO: насчет RealIP надо подумать и чем нибудь его заменить, он оказывается уже успел устареть
@@ -24,8 +27,12 @@ func NewRouter(d Dependencies) (http.Handler, error) {
 		return nil, ErrHealthRequired
 	}
 
+	if d.Logger == nil {
+		return nil, ErrLoggerRequired
+	}
+
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer)
+	r.Use(middleware.RequestID, middleware.RealIP, httpx.AccessLog(d.Logger), middleware.Recoverer)
 
 	r.NotFound(handleNotFound)
 	r.MethodNotAllowed(handleMethodNotAllowed)
