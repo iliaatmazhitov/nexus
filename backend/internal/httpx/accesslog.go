@@ -20,16 +20,23 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
 			defer func() {
+				// Если хендлер ничего не записал, клиент получит 200.
+				status := ww.Status()
+				if status == 0 {
+					status = http.StatusOK
+				}
+
 				level := slog.LevelInfo
-				requestID := middleware.GetReqID(r.Context())
-				if ww.Status() >= 500 && !isProbe(r.URL.Path) {
+				if status >= 500 && !isProbe(r.URL.Path) {
 					level = slog.LevelError
 				}
 
-				logger.Log(r.Context(), level, "http request", "request_id", requestID, "method", r.Method, "path", r.URL.Path, "status", ww.Status(),
-					"duration", time.Since(start), "bytes", ww.BytesWritten())
+				logger.Log(r.Context(), level, "http request", "request_id", middleware.GetReqID(r.Context()), "client_ip", middleware.GetClientIP(r.Context()),
+					"method", r.Method, "path", r.URL.Path, "status", status, "duration", time.Since(start), "bytes", ww.BytesWritten())
 			}()
+
 			next.ServeHTTP(ww, r)
 		})
 	}
