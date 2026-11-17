@@ -13,7 +13,7 @@ import (
 )
 
 func TestNewRouterRequiresHealth(t *testing.T) {
-	handler, err := api.NewRouter(api.Dependencies{Health: nil, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	handler, err := api.NewRouter(api.Dependencies{Health: nil, Logger: nil})
 
 	if !errors.Is(err, api.ErrHealthRequired) {
 		t.Errorf("error: got %v, want %v", err, api.ErrHealthRequired)

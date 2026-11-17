@@ -29,12 +29,15 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 				}
 
 				level := slog.LevelInfo
-				if status >= 500 && !isProbe(r.URL.Path) {
+				switch {
+				case isProbe(r.URL.Path):
+					level = slog.LevelDebug
+				case status >= 500:
 					level = slog.LevelError
 				}
 
 				logger.Log(r.Context(), level, "http request", "request_id", middleware.GetReqID(r.Context()), "client_ip", middleware.GetClientIP(r.Context()),
-					"method", r.Method, "path", r.URL.Path, "status", status, "duration", time.Since(start), "bytes", ww.BytesWritten())
+					"method", r.Method, "path", r.URL.Path, "status", status, "duration_ms", float64(time.Since(start))/float64(time.Millisecond), "bytes", ww.BytesWritten())
 			}()
 
 			next.ServeHTTP(ww, r)

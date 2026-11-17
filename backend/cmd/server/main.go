@@ -21,12 +21,19 @@ const (
 	stopTimeout  = 10 * time.Second
 )
 
+var version = "dev"
+
 // Запуск сервиса
 func run(ctx context.Context) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	env := os.Getenv("APP_ENV")
+	if env == "" {
+		env = "dev"
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "nexus", "env", env, "version", version)
 	slog.SetDefault(logger)
 
 	h := health.New()
