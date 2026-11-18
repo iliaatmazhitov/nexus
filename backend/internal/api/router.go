@@ -20,7 +20,6 @@ type Dependencies struct {
 	Logger *slog.Logger
 }
 
-// TODO: насчет RealIP надо подумать и чем нибудь его заменить, он оказывается уже успел устареть
 // Собирает http роутинг приложения
 func NewRouter(d Dependencies) (http.Handler, error) {
 	if d.Health == nil {
@@ -32,7 +31,7 @@ func NewRouter(d Dependencies) (http.Handler, error) {
 	}
 
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.RealIP, httpx.AccessLog(d.Logger), middleware.Recoverer)
+	r.Use(middleware.RequestID, middleware.ClientIPFromRemoteAddr, httpx.AccessLog(d.Logger), middleware.Recoverer)
 
 	r.NotFound(handleNotFound)
 	r.MethodNotAllowed(handleMethodNotAllowed)
