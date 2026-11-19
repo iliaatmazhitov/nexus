@@ -33,7 +33,14 @@ func run(ctx context.Context) error {
 		env = "dev"
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With("service", "nexus", "env", env, "version", version)
+	var handler slog.Handler
+	if env == "dev" {
+		handler = slog.NewTextHandler(os.Stdout, nil)
+	} else {
+		handler = slog.NewJSONHandler(os.Stdout, nil)
+	}
+
+	logger := slog.New(handler).With("service", "nexus", "env", env, "version", version)
 	slog.SetDefault(logger)
 
 	h := health.New()

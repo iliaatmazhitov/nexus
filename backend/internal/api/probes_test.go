@@ -1,8 +1,9 @@
 package api_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -42,6 +43,7 @@ func TestProbesAreRouted(t *testing.T) {
 		path               string
 		isReady            bool
 		expectedHTTPStatus int
+		expectedErrCode    string
 	}{
 		{
 			name:               "livez when not ready",
@@ -50,10 +52,17 @@ func TestProbesAreRouted(t *testing.T) {
 			expectedHTTPStatus: http.StatusOK,
 		},
 		{
+			name:               "livez when ready",
+			path:               "/livez",
+			isReady:            true,
+			expectedHTTPStatus: http.StatusOK,
+		},
+		{
 			name:               "readyz when not ready",
 			path:               "/readyz",
 			isReady:            false,
 			expectedHTTPStatus: http.StatusServiceUnavailable,
+			expectedErrCode:    "not_ready",
 		},
 		{
 			name:               "readyz when ready",
@@ -67,7 +76,9 @@ func TestProbesAreRouted(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := health.New()
 			h.SetReady(tc.isReady)
-			r, err := api.NewRouter(api.Dependencies{Health: h, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			r, err := api.NewRouter(api.Dependencies{Health: h, Logger: logger})
 
 			if err != nil {
 				t.Fatalf("error: got %v, want %v", err, nil)
@@ -82,6 +93,55 @@ func TestProbesAreRouted(t *testing.T) {
 				t.Errorf("http status: got %d, want %d", rec.Code, tc.expectedHTTPStatus)
 			}
 
+			var entry map[string]any
+			if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
+				t.Fatalf("decode log entry: %v (raw: %s)", err, buf.String())
+			}
+			if entry["level"] != "DEBUG" {
+				t.Errorf("level: got %v, want DEBUG", entry["level"])
+			}
+			if entry["status"] != float64(tc.expectedHTTPStatus) {
+				t.Errorf("logged status: got %v, want %d", entry["status"], tc.expectedHTTPStatus)
+			}
+			if entry["route"] != tc.path {
+				t.Errorf("route: got %v, want %q", entry["route"], tc.path)
+			}
+			if tc.expectedErrCode == "" {
+				if code, ok := entry["error_code"]; ok {
+					t.Errorf("error_code must be absent: got %v", code)
+				}
+			} else {
+				var body errorResponse
+				if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+					t.Fatalf("decode response: %v", err)
+				}
+				if body.Error.Code != tc.expectedErrCode {
+					t.Errorf("response error.code: got %q, want %q", body.Error.Code, tc.expectedErrCode)
+				}
+				if entry["error_code"] != body.Error.Code {
+					t.Errorf("logged error_code: got %v, want %q", entry["error_code"], body.Error.Code)
+				}
+			}
+			if reason, ok := entry["error"]; ok {
+				t.Errorf("error must be absent for probes without an internal cause: got %v", reason)
+			}
+		})
+	}
+}
+
+func TestProbeAccessLogsAreFilteredAtInfo(t *testing.T) {
+	for _, path := range []string{"/livez", "/readyz"} {
+		t.Run(path, func(t *testing.T) {
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&buf, nil))
+			router, err := api.NewRouter(api.Dependencies{Health: health.New(), Logger: logger})
+			if err != nil {
+				t.Fatal(err)
+			}
+			router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
+			if buf.Len() != 0 {
+				t.Errorf("probe must not log at Info threshold: %s", buf.String())
+			}
 		})
 	}
 }

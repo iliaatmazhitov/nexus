@@ -1,6 +1,7 @@
 package httpx_test
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -21,7 +22,7 @@ type errorResponse struct {
 func TestWriteJSON(t *testing.T) {
 	rec := httptest.NewRecorder()
 
-	httpx.WriteJSON(rec, http.StatusOK, map[string]string{"status": "ok"})
+	httpx.WriteJSON(context.Background(), rec, http.StatusOK, map[string]string{"status": "ok"})
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("httpStatus: got %d, want %d", rec.Code, http.StatusOK)
@@ -45,7 +46,7 @@ func TestWriteError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	testHTTPStatus := http.StatusTeapot
 	testErrCode := "test_write"
-	httpx.WriteError(rec, testHTTPStatus, testErrCode, "message")
+	httpx.WriteError(context.Background(), rec, testHTTPStatus, testErrCode, "message")
 
 	if rec.Code != testHTTPStatus {
 		t.Errorf("httpStatus: got %d, want %d", rec.Code, testHTTPStatus)
@@ -73,7 +74,7 @@ func TestWriteJSONEncodeFailure(t *testing.T) {
 	expectedHTTPStatus := http.StatusInternalServerError
 	noJSONValue := math.NaN()
 
-	httpx.WriteJSON(rec, sendHTTPStatus, noJSONValue)
+	httpx.WriteJSON(context.Background(), rec, sendHTTPStatus, noJSONValue)
 
 	if !json.Valid(rec.Body.Bytes()) {
 		t.Fatalf("body is not valid JSON: %s", rec.Body.String())

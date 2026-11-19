@@ -20,7 +20,6 @@ type Dependencies struct {
 	Logger *slog.Logger
 }
 
-// TODO: насчет RealIP надо подумать и чем нибудь его заменить, он оказывается уже успел устареть
 // Собирает http роутинг приложения
 func NewRouter(d Dependencies) (http.Handler, error) {
 	if d.Health == nil {
@@ -32,7 +31,7 @@ func NewRouter(d Dependencies) (http.Handler, error) {
 	}
 
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.RealIP, httpx.AccessLog(d.Logger), middleware.Recoverer)
+	r.Use(middleware.RequestID, middleware.ClientIPFromRemoteAddr, httpx.AccessLog(d.Logger), httpx.Recoverer)
 
 	r.NotFound(handleNotFound)
 	r.MethodNotAllowed(handleMethodNotAllowed)
@@ -47,16 +46,19 @@ func NewRouter(d Dependencies) (http.Handler, error) {
 	return r, nil
 }
 
-func handleNotFound(w http.ResponseWriter, _ *http.Request) {
-	httpx.WriteError(w, http.StatusNotFound, "not_found", "route not found")
+func handleNotFound(w http.ResponseWriter, r *http.Request) {
+	httpx.SetRequestError(r.Context(), "not_found", nil)
+	httpx.WriteError(r.Context(), w, http.StatusNotFound, "not_found", "route not found")
 }
 
-func handleMethodNotAllowed(w http.ResponseWriter, _ *http.Request) {
-	httpx.WriteError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+func handleMethodNotAllowed(w http.ResponseWriter, r *http.Request) {
+	httpx.SetRequestError(r.Context(), "method_not_allowed", nil)
+	httpx.WriteError(r.Context(), w, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 }
 
 // mock func
-func handleMe(w http.ResponseWriter, _ *http.Request) {
+func handleMe(w http.ResponseWriter, r *http.Request) {
+	httpx.SetRequestError(r.Context(), "unauthenticated", nil)
 	w.Header().Set("WWW-Authenticate", "Bearer")
-	httpx.WriteError(w, http.StatusUnauthorized, "unauthenticated", "missing or invalid token")
+	httpx.WriteError(r.Context(), w, http.StatusUnauthorized, "unauthenticated", "missing or invalid token")
 }

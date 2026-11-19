@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -19,9 +20,10 @@ type errorResponse struct {
 
 var fallbackInternal = []byte(`{"error":{"code":"internal","message":"internal error"}}`)
 
-func WriteJSON(w http.ResponseWriter, status int, v any) {
+func WriteJSON(ctx context.Context, w http.ResponseWriter, status int, v any) {
 	data, err := json.Marshal(v)
 	if err != nil {
+		SetRequestError(ctx, "internal", err)
 		slog.Error("encode response", "err", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -38,8 +40,8 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 }
 
 // Пишем ошибку в стандартном формате API
-func WriteError(w http.ResponseWriter, status int, code, message string) {
-	WriteJSON(w, status, errorResponse{
+func WriteError(ctx context.Context, w http.ResponseWriter, status int, code, message string) {
+	WriteJSON(ctx, w, status, errorResponse{
 		Error: ErrorBody{
 			Code:    code,
 			Message: message,
