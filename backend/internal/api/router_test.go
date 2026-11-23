@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -122,5 +123,94 @@ func TestMeSetsWWWAuthenticate(t *testing.T) {
 	want := "Bearer"
 	if got := rec.Header().Get("WWW-Authenticate"); got != want {
 		t.Errorf("WWW-Authenticate: got %q, want %q", got, want)
+	}
+}
+
+func TestRouterErrorAccessLog(t *testing.T) {
+	tests := []struct {
+		name      string
+		method    string
+		target    string
+		status    int
+		code      string
+		wantRoute string
+		wantLevel string
+	}{
+		{
+			name:      "unauthenticated",
+			method:    http.MethodGet,
+			target:    "/api/v1/me",
+			status:    401,
+			code:      "unauthenticated",
+			wantRoute: "/api/v1/me",
+			wantLevel: "INFO",
+		},
+		{
+			name:      "not found",
+			method:    http.MethodGet,
+			target:    "/random?token=query-secret",
+			status:    404,
+			code:      "not_found",
+			wantRoute: "UNMATCHED",
+			wantLevel: "INFO",
+		},
+		{
+			name:      "method not allowed",
+			method:    http.MethodPost,
+			target:    "/livez",
+			status:    405,
+			code:      "method_not_allowed",
+			wantRoute: "UNMATCHED",
+			wantLevel: "DEBUG",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			router, err := api.NewRouter(api.Dependencies{Health: health.New(), Logger: logger})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(tc.method, tc.target, nil)
+			req.RemoteAddr = "192.0.2.10:1234"
+			req.Header.Set("X-Forwarded-For", "198.51.100.99")
+			req.Header.Set("X-Real-IP", "198.51.100.98")
+			router.ServeHTTP(rec, req)
+			if rec.Code != tc.status {
+				t.Errorf("http status: got %d, want %d", rec.Code, tc.status)
+			}
+			var body errorResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if body.Error.Code != tc.code {
+				t.Errorf("response error.code: got %q, want %q", body.Error.Code, tc.code)
+			}
+			var entry map[string]any
+			if err := json.Unmarshal(buf.Bytes(), &entry); err != nil {
+				t.Fatalf("decode log: %v (raw: %s)", err, buf.String())
+			}
+			for key, want := range map[string]any{
+				"status": float64(tc.status), "error_code": body.Error.Code,
+				"path": req.URL.Path, "route": tc.wantRoute, "level": tc.wantLevel,
+				"bytes":     float64(rec.Body.Len()),
+				"client_ip": "192.0.2.10",
+			} {
+				if entry[key] != want {
+					t.Errorf("%s: got %v, want %v", key, entry[key], want)
+				}
+			}
+			if id, ok := entry["request_id"].(string); !ok || id == "" {
+				t.Errorf("request_id: got %v, want non-empty string", entry["request_id"])
+			}
+			if reason, ok := entry["error"]; ok {
+				t.Errorf("error must be absent without internal cause: got %v", reason)
+			}
+			if bytes.Contains(buf.Bytes(), []byte("query-secret")) {
+				t.Error("query secret appeared in log")
+			}
+		})
 	}
 }

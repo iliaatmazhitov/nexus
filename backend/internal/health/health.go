@@ -23,19 +23,20 @@ func (h *Health) SetReady(ready bool) {
 	h.ready.Store(ready)
 }
 
-func (h *Health) Live(w http.ResponseWriter, _ *http.Request) {
-	httpx.WriteJSON(w, http.StatusOK, statusResponse{
+func (h *Health) Live(w http.ResponseWriter, r *http.Request) {
+	httpx.WriteJSON(r.Context(), w, http.StatusOK, statusResponse{
 		Status: "ok",
 	})
 }
 
-func (h *Health) Ready(w http.ResponseWriter, _ *http.Request) {
+func (h *Health) Ready(w http.ResponseWriter, r *http.Request) {
 	if !h.ready.Load() {
-		httpx.WriteError(w, http.StatusServiceUnavailable, "not_ready", "service is starting or shutting down")
+		httpx.SetRequestError(r.Context(), "not_ready", nil)
+		httpx.WriteError(r.Context(), w, http.StatusServiceUnavailable, "not_ready", "service is starting or shutting down")
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusOK, statusResponse{
+	httpx.WriteJSON(r.Context(), w, http.StatusOK, statusResponse{
 		Status: "ready",
 	})
 }
