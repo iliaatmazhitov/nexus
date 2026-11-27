@@ -79,7 +79,6 @@ func TestProbesAreRouted(t *testing.T) {
 			var buf bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 			r, err := api.NewRouter(api.Dependencies{Health: h, Logger: logger})
-
 			if err != nil {
 				t.Fatalf("error: got %v, want %v", err, nil)
 			}
