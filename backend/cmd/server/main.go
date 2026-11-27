@@ -11,9 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/iliaatmazhitov/nexus/internal/api"
 	"github.com/iliaatmazhitov/nexus/internal/health"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -45,7 +46,6 @@ func run(ctx context.Context) error {
 
 	h := health.New()
 	router, err := api.NewRouter(api.Dependencies{Health: h, Logger: logger})
-
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

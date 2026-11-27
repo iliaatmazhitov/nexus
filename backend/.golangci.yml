@@ -1,0 +1,57 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - gosec
+    - errorlint
+    - sloglint
+    - noctx
+    - gocritic
+    - revive
+    - bodyclose
+    - misspell
+    - unparam
+  settings:
+    sloglint:
+      kv-only: true # только пары ключ-значение, без slog.Attr вперемешку
+      no-global: "" # slog.Info/slog.Error разрешены (используются в main)
+    misspell:
+      locale: US
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+    revive:
+      rules:
+        - name: exported
+          disabled: true # комментарии на русском, не требуем "Name ..." в начале
+        - name: package-comments
+          disabled: true # на данный момент проект не большой, а потому расширенная документация не требуется
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling # не проверяем ошибки Close/Write т.к. их некуда вернуть, а проверки понизят читаемость кода
+    rules:
+      # в тестах допустимы упрощения: игнор ошибок закрытия, httptest без ctx и т.д.
+      - path: _test\.go
+        linters:
+          - gosec
+          - noctx
+          - unparam
+          - bodyclose
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/iliaatmazhitov/nexus
+  exclusions:
+    generated: lax

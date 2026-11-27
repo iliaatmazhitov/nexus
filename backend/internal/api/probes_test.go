@@ -14,7 +14,7 @@ import (
 )
 
 func TestNewRouterRequiresHealth(t *testing.T) {
-	handler, err := api.NewRouter(api.Dependencies{Health: nil, Logger: nil})
+	handler, err := api.NewRouter(api.Dependencies{Health: nil, Logger: slog.New(slog.DiscardHandler)})
 
 	if !errors.Is(err, api.ErrHealthRequired) {
 		t.Errorf("error: got %v, want %v", err, api.ErrHealthRequired)
@@ -79,7 +79,6 @@ func TestProbesAreRouted(t *testing.T) {
 			var buf bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 			r, err := api.NewRouter(api.Dependencies{Health: h, Logger: logger})
-
 			if err != nil {
 				t.Fatalf("error: got %v, want %v", err, nil)
 			}

@@ -3,7 +3,6 @@ package api_test
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +23,7 @@ type errorResponse struct {
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
 
-	r, err := api.NewRouter(api.Dependencies{Health: health.New(), Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	r, err := api.NewRouter(api.Dependencies{Health: health.New(), Logger: slog.New(slog.DiscardHandler)})
 	if err != nil {
 		t.Fatalf("NewRouter: %v", err)
 	}

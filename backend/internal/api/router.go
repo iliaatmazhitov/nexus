@@ -7,12 +7,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
 	"github.com/iliaatmazhitov/nexus/internal/health"
 	"github.com/iliaatmazhitov/nexus/internal/httpx"
 )
 
-var ErrHealthRequired = errors.New("api: Health is required")
-var ErrLoggerRequired = errors.New("api: Logger is required")
+var (
+	ErrHealthRequired = errors.New("api: Health is required")
+	ErrLoggerRequired = errors.New("api: Logger is required")
+)
 
 // Dependencies: тут будет все, что нужно роутеру извне
 type Dependencies struct {
